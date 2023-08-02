@@ -2,11 +2,10 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
-from flask import Flask, request, jsonify, url_for
+from flask import Flask, request, jsonify, abort, url_for
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from datastructures import FamilyStructure
-#from models import Person
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -20,6 +19,15 @@ jackson_family = FamilyStructure("Jackson")
 def handle_invalid_usage(error):
     return jsonify(error.to_dict()), error.status_code
 
+def handle_bad_request(error):
+    return jsonify({"error": "Bad request"}), 400
+
+def handle_internal_server_error(error):
+    return jsonify({"error": "Internal Server error"}), 500
+
+# app.register_error_handler(400, handle_bad_request)
+# app.register_error_handler(500, handle_internal_server_error)
+
 # generate sitemap with all your endpoints
 @app.route('/')
 def sitemap():
@@ -30,13 +38,29 @@ def handle_hello():
 
     # this is how you can use the Family datastructure by calling its methods
     members = jackson_family.get_all_members()
-    response_body = {
-        "hello": "world",
-        "family": members
-    }
-
-
+    response_body = members   
     return jsonify(response_body), 200
+
+@app.route('/member', methods=['POST'])
+def add_member():
+    member_data = request.json
+    if not member_data:
+        abort(400)
+    jackson_family.add_member(member_data)
+    return jsonify({"message": "Member added successfully"}), 200
+
+@app.route('/member/<int:member_id>', methods=['GET'])
+def get_member(member_id):
+    member = jackson_family.get_member(member_id)
+    if member:
+        return jsonify(member), 200
+    else:
+        return jsonify({"message": "Member not found"}), 404
+
+@app.route('/member/<int:member_id>', methods=['DELETE'])
+def delete_member(member_id):
+    jackson_family.delete_member(member_id)
+    return jsonify({"done": True}), 200
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
